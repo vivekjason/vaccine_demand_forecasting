@@ -1,0 +1,25 @@
+---
+title: "Influenza Vaccinationation for Older Individuals"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    theme: 
+      version: 4
+      bootswatch: litera  
+---
+
+# State
+```{r reactable-table, echo=FALSE, message=FALSE, warning=FALSE}
+# Load required libraries
+library(here)
+library(reactable)
+
+# Load the saved reactable object (assumed saved at outputs/state_vaccine.reactable.rds)
+state_reactable <- readRDS(here("output", "state_vaccine.reactable.rds"))
+
+# Display the reactable table
+state_reactable
+```
+
+# Clinic

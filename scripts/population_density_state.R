@@ -77,6 +77,7 @@ vaccine_slots <- import(here("data", "full_data.csv")) %>%
 # AGGREGATION TO STATE -----------------------------------------------------------
 # Aggregate facility-level (vaccine slots) data by state.
 state_vax_data <- vaccine_slots %>%
+  filter(hf_code != "DB-9927") %>% 
   mutate(total_stok_vaksin = as.numeric(total_stok_vaksin),
          state = str_to_sentence(state),
          state = recode(state,
@@ -94,7 +95,7 @@ state_vax_data <- vaccine_slots %>%
   ungroup() %>% 
   mutate(total_remaining = total_slots - total_booked,
          perc_uptake = (total_booked/total_slots)*100
-  )
+  ) 
 
 # MERGE STATE VAX DATA WITH POPULATION & PREVALENCE -------------------------
 state_merged <- state_vax_data %>%
@@ -116,7 +117,8 @@ total_predicted_demand <- sum(state_merged$predicted_demand, na.rm = TRUE)
 state_merged <- state_merged %>%
   mutate(predicted_vaccines = (predicted_demand / total_predicted_demand) * 170000)
 
-# FINAL DATASET -----------------------------------------------------------
+
+# Final dataset -----------------------------------------------------------
 final_state_data <- state_merged %>%
   select(
     state,
@@ -127,11 +129,14 @@ final_state_data <- state_merged %>%
     predicted_vaccines,
     pop_60_plus,
     diabetes_prevalence_60,
+    diabetes_cases_60,
     hpt_prevalence_60,
-    obesity_prevalence_60
+    hpt_cases_60_est,
+    obesity_prevalence_60,
+    obesity_cases_60_est
   ) %>% 
   mutate(predicted_vaccines = round(predicted_vaccines, 0)) %>%
-  # ADD NEW COLUMNS: CALCULATE %SLOTS BOOKED, SUPPLY DIFFERENCE, AND ADJUSTMENT
+  # Calculate additional metrics
   mutate(
     percent_slots_booked = if_else(total_slots > 0, booked / slots, NA_real_),
     supply_diff = predicted_vaccines - stock,
@@ -141,16 +146,35 @@ final_state_data <- state_merged %>%
       supply_diff > 0 ~ paste("Supply", supply_diff, "more vaccines"),
       TRUE ~ "No adjustment"
     )
-  ) %>% 
-  select(state, slots = total_slots, booked, percent_slots_booked, stock, predicted_vaccines, 
-         supply_diff, percent_supply_diff, adjustment, pop_60_plus, 
-         diabetes_prevalence_60, hpt_prevalence_60, obesity_prevalence_60)
+  ) %>%
+  # Combine cases with prevalence: cases followed by prevalence in brackets
+  mutate(
+    DM = paste0(diabetes_cases_60, " (", diabetes_prevalence_60, "%)"),
+    HPT = paste0(hpt_cases_60_est, " (", hpt_prevalence_60, "%)"),
+    Obesity = paste0(obesity_cases_60_est, " (", obesity_prevalence_60, "%)")
+  ) %>%
+  # Select/reorder final columns
+  select(
+    state,
+    slots = total_slots,
+    booked,
+    percent_slots_booked,
+    stock,
+    predicted_vaccines,
+    supply_diff,
+    percent_supply_diff,
+    adjustment,
+    pop_60_plus,
+    DM,
+    HPT,
+    Obesity
+  )
 
 # BUILD INTERACTIVE TABLE WITH REACTABLE ------------------------------------------------
 final_table <- reactable(
   final_state_data,
   pagination = FALSE,      # Fit all rows on one page
-  filterable = FALSE,      # No search bar at the top
+  filterable = FALSE,      # No search bar at the top (change to TRUE if needed)
   defaultSorted = "slots",
   defaultColDef = colDef(
     style = list(fontFamily = "Calibri, Arial, sans-serif", fontSize = "14px")
@@ -203,22 +227,6 @@ final_table <- reactable(
       align = "center",
       format = colFormat(separators = TRUE, digits = 0)
     ),
-    percent_supply_diff = colDef(
-      name = "% Supply Difference",
-      align = "center",
-      format = colFormat(percent = TRUE, digits = 1),
-      style = function(value) {
-        if (!is.na(value)) {
-          if (value > 0) {
-            list(background = "#ffcccc", color = "#a10000")
-          } else if (value < 0) {
-            list(background = "#ccffcc", color = "#006600")
-          } else {
-            list()
-          }
-        }
-      }
-    ),
     supply_diff = colDef(
       name = "Supply Difference",
       align = "center",
@@ -228,6 +236,22 @@ final_table <- reactable(
           if (value < 0) {
             list(background = "#ffcccc", color = "#a10000")
           } else if (value > 0) {
+            list(background = "#ccffcc", color = "#006600")
+          } else {
+            list()
+          }
+        }
+      }
+    ),
+    percent_supply_diff = colDef(
+      name = "% Supply Difference",
+      align = "center",
+      format = colFormat(percent = TRUE, digits = 1),
+      style = function(value) {
+        if (!is.na(value)) {
+          if (value > 0) {
+            list(background = "#ffcccc", color = "#a10000")
+          } else if (value < 0) {
             list(background = "#ccffcc", color = "#006600")
           } else {
             list()
@@ -254,20 +278,17 @@ final_table <- reactable(
       align = "center",
       format = colFormat(separators = TRUE, digits = 0)
     ),
-    diabetes_prevalence_60 = colDef(
-      name = "DM Prevalence",
-      align = "center",
-      format = colFormat(percent = FALSE, digits = 1)
+    DM = colDef(
+      name = "DM Cases (Prevalence)",
+      align = "center"
     ),
-    hpt_prevalence_60 = colDef(
-      name = "HPT Prevalence",
-      align = "center",
-      format = colFormat(percent = FALSE, digits = 1)
+    HPT = colDef(
+      name = "HPT Cases (Prevalence)",
+      align = "center"
     ),
-    obesity_prevalence_60 = colDef(
-      name = "Obesity Prevalence",
-      align = "center",
-      format = colFormat(percent = FALSE, digits = 1)
+    Obesity = colDef(
+      name = "Obesity Cases (Prevalence)",
+      align = "center"
     )
   ),
   theme = reactableTheme(

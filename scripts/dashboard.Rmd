@@ -23,3 +23,11 @@ state_reactable
 ```
 
 # Clinic
+```{r}
+# Load the saved reactable object (assumed saved at outputs/state_vaccine.reactable.rds)
+clinic_reactable <- readRDS(here("output", "clinic_vaccine.reactable.rds"))
+
+# Display the reactable table
+clinic_reactable
+```
+
